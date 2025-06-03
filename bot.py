@@ -3,7 +3,7 @@ import asyncio
 import sqlite3
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
 BOT_TOKEN = '7974009937:AAFgGbCjjUzTLyhHnYVtdj-bp9_Qtw_zqH4'
 HR_CHAT_ID = -4839159337
@@ -125,12 +125,8 @@ main_kb = ReplyKeyboardMarkup(
 
 user_state = {}
 
-# ——— ФУНКЦИИ ТОЛЬКО ДЛЯ ЛИЧКИ (private) ———
-
 @dp.message(Command('start'))
 async def start(message: types.Message):
-    if message.chat.type != "private":
-        return
     await message.answer(
         "Добро пожаловать в бот ООО \"ТСР Остекление\"!\n"
         "Мы — производственно-монтажная компания, специализирующаяся на остеклении объектов любой сложности.\n\n"
@@ -139,17 +135,17 @@ async def start(message: types.Message):
     )
     user_state[message.from_user.id] = None
 
-@dp.message(lambda m: m.chat.type == "private" and m.text == "👤 Я монтажник (одиночка)")
+@dp.message(F.text == "👤 Я монтажник (одиночка)")
 async def lone_worker_start(message: types.Message):
     user_state[message.from_user.id] = {'role': 'lone', 'step': 1}
     await message.answer("Укажите ваши ФИО:")
 
-@dp.message(lambda m: m.chat.type == "private" and m.text == "👥 Я представляю монтажную бригаду")
+@dp.message(F.text == "👥 Я представляю монтажную бригаду")
 async def team_start(message: types.Message):
     user_state[message.from_user.id] = {'role': 'team', 'step': 1}
     await message.answer("ФИО контактного лица:")
 
-@dp.message(lambda m: m.chat.type == "private" and m.text == "ℹ️ О компании")
+@dp.message(F.text == "ℹ️ О компании")
 async def about_company(message: types.Message):
     await message.answer(
         "<b>ООО “ТСР Остекление”</b> — производственно-монтажная организация, специализирующаяся на остеклении объектов любой сложности.\n\n"
@@ -168,12 +164,12 @@ async def about_company(message: types.Message):
         parse_mode="HTML"
     )
 
-@dp.message(lambda m: m.chat.type == "private" and m.text == "❓ Задать вопрос")
+@dp.message(F.text == "❓ Задать вопрос")
 async def ask_question(message: types.Message):
     user_state[message.from_user.id] = {'role': 'question'}
     await message.answer("Пожалуйста, напишите свой вопрос. Специалист ответит вам в ближайшее время.")
 
-@dp.message(lambda m: m.chat.type == "private" and user_state.get(m.from_user.id, {}).get('role') == 'question')
+@dp.message(lambda m: user_state.get(m.from_user.id, {}).get('role') == 'question')
 async def handle_user_question(message: types.Message):
     hr_text = (
         f"❓ Вопрос от пользователя @{message.from_user.username if message.from_user.username else message.from_user.id}:\n"
@@ -184,7 +180,7 @@ async def handle_user_question(message: types.Message):
     user_state[message.from_user.id] = None
 
 # Анкета для одиночки
-@dp.message(lambda m: m.chat.type == "private" and user_state.get(m.from_user.id, {}).get('role') == 'lone')
+@dp.message(lambda m: user_state.get(m.from_user.id, {}).get('role') == 'lone')
 async def lone_worker_form(message: types.Message):
     state = user_state[message.from_user.id]
     step = state.get('step', 1)
@@ -244,7 +240,7 @@ async def lone_worker_form(message: types.Message):
     elif step == 10:
         state['limitations'] = message.text
         if message.text != "Нет":
-            await message.answer("Уточните, если необходимо (можно пропустить):", reply_markup=types.ReplyKeyboardRemove())
+            await message.answer("Уточните, если необходимо (можно пропустить):", reply_markup=ReplyKeyboardRemove())
             state['step'] = 11
         else:
             state['limitations_details'] = ""
@@ -257,7 +253,7 @@ async def lone_worker_form(message: types.Message):
     elif step == 12:
         state['conviction'] = message.text
         if message.text == "Да":
-            await message.answer("Уточните, если необходимо (можно пропустить):", reply_markup=types.ReplyKeyboardRemove())
+            await message.answer("Уточните, если необходимо (можно пропустить):", reply_markup=ReplyKeyboardRemove())
             state['step'] = 13
         else:
             state['conviction_details'] = ""
@@ -332,10 +328,164 @@ async def lone_worker_form(message: types.Message):
             await message.answer(f"Ошибка при отправке анкеты: {e}")
             print("Ошибка при отправке анкеты:", e)
 
-# Аналогично добавьте хендлер для бригад — ТОЛЬКО для лички:
-@dp.message(lambda m: m.chat.type == "private" and user_state.get(m.from_user.id, {}).get('role') == 'team')
+# Анкета для бригад
+@dp.message(lambda m: user_state.get(m.from_user.id, {}).get('role') == 'team')
 async def team_form(message: types.Message):
-    # Логика заполнения анкеты для бригады — аналогично lone_worker_form
+    state = user_state[message.from_user.id]
+    step = state.get('step', 1)
+
+    if step == 1:
+        state['contact_name'] = message.text
+        await message.answer("Гражданство:", reply_markup=citizenship_kb)
+        state['step'] = 2
+    elif step == 2:
+        state['citizenship'] = message.text
+        if message.text != "РФ":
+            await message.answer("Есть разрешение на проживание и работу?", reply_markup=yesno_kb)
+            state['step'] = 21
+        else:
+            await message.answer("Регион постоянного проживания:")
+            state['step'] = 3
+    elif step == 21:
+        state['work_permit'] = message.text
+        await message.answer("Срок действия разрешения (до какого числа)?")
+        state['step'] = 22
+    elif step == 22:
+        state['permit_validity'] = message.text
+        await message.answer("В каких регионах действительно разрешение?")
+        state['step'] = 23
+    elif step == 23:
+        state['permit_regions'] = message.text
+        await message.answer("Регион постоянного проживания:")
+        state['step'] = 3
+    elif step == 3:
+        state['home_region'] = message.text
+        await message.answer("В каких регионах готовы работать?")
+        state['step'] = 4
+    elif step == 4:
+        state['work_regions'] = message.text
+        await message.answer("Количество человек в бригаде:")
+        state['step'] = 5
+    elif step == 5:
+        state['members_count'] = message.text
+        await message.answer("Максимально возможное расширение бригады (до скольки человек):")
+        state['step'] = 6
+    elif step == 6:
+        state['max_expand'] = message.text
+        await message.answer("Опыт работы с ПВХ профильными системами:", reply_markup=experience_kb)
+        state['step'] = 7
+    elif step == 7:
+        state['pvc_exp'] = message.text
+        await message.answer("С какими ПВХ профильными системами работали?")
+        state['step'] = 8
+    elif step == 8:
+        state['pvc_systems'] = message.text
+        await message.answer("Опыт работы с алюминиевыми профильными системами:", reply_markup=experience_kb)
+        state['step'] = 9
+    elif step == 9:
+        state['al_exp'] = message.text
+        await message.answer("С какими алюминиевыми системами работали?")
+        state['step'] = 10
+    elif step == 10:
+        state['al_systems'] = message.text
+        await message.answer("Есть или готовы открыть ИП на патенте?", reply_markup=ip_kb)
+        state['step'] = 11
+    elif step == 11:
+        state['ip_patent'] = message.text
+        await message.answer("Есть ли ограничения при официальном трудоустройстве?", reply_markup=limitations_kb)
+        state['step'] = 12
+    elif step == 12:
+        state['limitations'] = message.text
+        if message.text != "Нет":
+            await message.answer("Уточните, если необходимо (можно пропустить):", reply_markup=ReplyKeyboardRemove())
+            state['step'] = 13
+        else:
+            state['limitations_details'] = ""
+            await message.answer("Есть ли судимости?", reply_markup=yesno_kb)
+            state['step'] = 14
+    elif step == 13:
+        state['limitations_details'] = message.text
+        await message.answer("Есть ли судимости?", reply_markup=yesno_kb)
+        state['step'] = 14
+    elif step == 14:
+        state['conviction'] = message.text
+        if message.text == "Да":
+            await message.answer("Уточните, если необходимо (можно пропустить):", reply_markup=ReplyKeyboardRemove())
+            state['step'] = 15
+        else:
+            state['conviction_details'] = ""
+            await message.answer("Готовы работать 10 ч/6 дн. в неделю?", reply_markup=work_mode_kb)
+            state['step'] = 16
+    elif step == 15:
+        state['conviction_details'] = message.text
+        await message.answer("Готовы работать 10 ч/6 дн. в неделю?", reply_markup=work_mode_kb)
+        state['step'] = 16
+    elif step == 16:
+        state['work_10_6'] = message.text
+        await message.answer("В редких случаях готовы работать 10 ч/7 дн. в неделю?", reply_markup=work_mode_kb)
+        state['step'] = 17
+    elif step == 17:
+        state['work_10_7'] = message.text
+        await message.answer("Объекты, на которых работали (название, местонахождение, объемы, виды работ):")
+        state['step'] = 18
+    elif step == 18:
+        state['objects'] = message.text
+        await message.answer("Ваш контактный телефон:")
+        state['step'] = 19
+    elif step == 19:
+        state['phone'] = message.text
+        try:
+            cur.execute("""
+                INSERT INTO teams (
+                    telegram_id, contact_name, citizenship, work_permit, permit_validity, permit_regions,
+                    home_region, work_regions, members_count, max_expand, pvc_exp, pvc_systems,
+                    al_exp, al_systems, ip_patent, limitations, limitations_details,
+                    conviction, conviction_details, work_10_6, work_10_7, objects, phone
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    message.from_user.id, state.get('contact_name', ""), state.get('citizenship', ""), state.get('work_permit', ""),
+                    state.get('permit_validity', ""), state.get('permit_regions', ""), state.get('home_region', ""),
+                    state.get('work_regions', ""), state.get('members_count', ""), state.get('max_expand', ""),
+                    state.get('pvc_exp', ""), state.get('pvc_systems', ""), state.get('al_exp', ""), state.get('al_systems', ""),
+                    state.get('ip_patent', ""), state.get('limitations', ""), state.get('limitations_details', ""),
+                    state.get('conviction', ""), state.get('conviction_details', ""), state.get('work_10_6', ""),
+                    state.get('work_10_7', ""), state.get('objects', ""), state.get('phone', "")
+                )
+            )
+            conn.commit()
+
+            hr_text = (
+                f"📝 [АНКЕТА БРИГАДА]\n"
+                f"Контактное лицо: {state.get('contact_name','')}\n"
+                f"Гражданство: {state.get('citizenship','')}\n"
+                f"Разрешение на работу: {state.get('work_permit','')}\n"
+                f"Срок действия разрешения: {state.get('permit_validity','')}\n"
+                f"Регионы действия разрешения: {state.get('permit_regions','')}\n"
+                f"Регион проживания: {state.get('home_region','')}\n"
+                f"Готовы работать в регионах: {state.get('work_regions','')}\n"
+                f"Численность бригады: {state.get('members_count','')}\n"
+                f"Максимальное расширение: {state.get('max_expand','')}\n"
+                f"Опыт в ПВХ: {state.get('pvc_exp','')}\n"
+                f"ПВХ системы: {state.get('pvc_systems','')}\n"
+                f"Опыт в алюминии: {state.get('al_exp','')}\n"
+                f"Алюминиевые системы: {state.get('al_systems','')}\n"
+                f"ИП на патенте: {state.get('ip_patent','')}\n"
+                f"Ограничения: {state.get('limitations','')}\n"
+                f"Ограничения детали: {state.get('limitations_details','')}\n"
+                f"Судимости: {state.get('conviction','')}\n"
+                f"Судимости детали: {state.get('conviction_details','')}\n"
+                f"График 10/6: {state.get('work_10_6','')}\n"
+                f"График 10/7: {state.get('work_10_7','')}\n"
+                f"Объекты: {state.get('objects','')}\n"
+                f"Телефон: {state.get('phone','')}\n"
+                f"Telegram: @{message.from_user.username if message.from_user.username else '-'}"
+            )
+            await bot.send_message(HR_CHAT_ID, hr_text, reply_markup=None)
+            await message.answer("Спасибо! Ваша анкета отправлена. Мы свяжемся с вами в течение 2 рабочих дней.", reply_markup=main_kb)
+            user_state[message.from_user.id] = None
+        except Exception as e:
+            await message.answer(f"Ошибка при отправке анкеты: {e}")
+            print("Ошибка при отправке анкеты (бригада):", e)
 
 async def main():
     logging.basicConfig(level=logging.INFO)
