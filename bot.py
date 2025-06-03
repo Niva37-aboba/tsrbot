@@ -125,8 +125,12 @@ main_kb = ReplyKeyboardMarkup(
 
 user_state = {}
 
+# ——— ФУНКЦИИ ТОЛЬКО ДЛЯ ЛИЧКИ (private) ———
+
 @dp.message(Command('start'))
 async def start(message: types.Message):
+    if message.chat.type != "private":
+        return
     await message.answer(
         "Добро пожаловать в бот ООО \"ТСР Остекление\"!\n"
         "Мы — производственно-монтажная компания, специализирующаяся на остеклении объектов любой сложности.\n\n"
@@ -135,41 +139,41 @@ async def start(message: types.Message):
     )
     user_state[message.from_user.id] = None
 
-@dp.message(F.text == "👤 Я монтажник (одиночка)")
+@dp.message(lambda m: m.chat.type == "private" and m.text == "👤 Я монтажник (одиночка)")
 async def lone_worker_start(message: types.Message):
     user_state[message.from_user.id] = {'role': 'lone', 'step': 1}
     await message.answer("Укажите ваши ФИО:")
 
-@dp.message(F.text == "👥 Я представляю монтажную бригаду")
+@dp.message(lambda m: m.chat.type == "private" and m.text == "👥 Я представляю монтажную бригаду")
 async def team_start(message: types.Message):
     user_state[message.from_user.id] = {'role': 'team', 'step': 1}
     await message.answer("ФИО контактного лица:")
 
-@dp.message(F.text == "ℹ️ О компании")
+@dp.message(lambda m: m.chat.type == "private" and m.text == "ℹ️ О компании")
 async def about_company(message: types.Message):
     await message.answer(
         "<b>ООО “ТСР Остекление”</b> — производственно-монтажная организация, специализирующаяся на остеклении объектов любой сложности.\n\n"
-    "🏢 <b>Изготавливаем и устанавливаем:</b>\n"
-    "• Оконные и входные группы\n"
-    "• Балконные блоки из ПВХ и алюминия\n\n"
-    "🛠 <b>Что предлагаем:</b>\n"
-    "• Оформление по ТК РФ (по желанию)\n"
-    "• Выплаты <b>2 раза в месяц</b>\n"
-    "• Бесплатный медосмотр\n"
-    "• Спецодежда и инструмент\n"
-    "• Занятость круглый год\n\n"
-    "👷‍♂️ <b>Обязанности:</b>\n"
-    "• Монтаж ПВХ и алюминиевых конструкций по проекту\n"
-    "• Соблюдение охраны труда",
-    parse_mode="HTML"
+        "🏢 <b>Изготавливаем и устанавливаем:</b>\n"
+        "• Оконные и входные группы\n"
+        "• Балконные блоки из ПВХ и алюминия\n\n"
+        "🛠 <b>Что предлагаем:</b>\n"
+        "• Оформление по ТК РФ (по желанию)\n"
+        "• Выплаты <b>2 раза в месяц</b>\n"
+        "• Бесплатный медосмотр\n"
+        "• Спецодежда и инструмент\n"
+        "• Занятость круглый год\n\n"
+        "👷‍♂️ <b>Обязанности:</b>\n"
+        "• Монтаж ПВХ и алюминиевых конструкций по проекту\n"
+        "• Соблюдение охраны труда",
+        parse_mode="HTML"
     )
 
-@dp.message(F.text == "❓ Задать вопрос")
+@dp.message(lambda m: m.chat.type == "private" and m.text == "❓ Задать вопрос")
 async def ask_question(message: types.Message):
     user_state[message.from_user.id] = {'role': 'question'}
     await message.answer("Пожалуйста, напишите свой вопрос. Специалист ответит вам в ближайшее время.")
 
-@dp.message(lambda m: user_state.get(m.from_user.id, {}).get('role') == 'question')
+@dp.message(lambda m: m.chat.type == "private" and user_state.get(m.from_user.id, {}).get('role') == 'question')
 async def handle_user_question(message: types.Message):
     hr_text = (
         f"❓ Вопрос от пользователя @{message.from_user.username if message.from_user.username else message.from_user.id}:\n"
@@ -180,7 +184,7 @@ async def handle_user_question(message: types.Message):
     user_state[message.from_user.id] = None
 
 # Анкета для одиночки
-@dp.message(lambda m: user_state.get(m.from_user.id, {}).get('role') == 'lone')
+@dp.message(lambda m: m.chat.type == "private" and user_state.get(m.from_user.id, {}).get('role') == 'lone')
 async def lone_worker_form(message: types.Message):
     state = user_state[message.from_user.id]
     step = state.get('step', 1)
@@ -328,8 +332,10 @@ async def lone_worker_form(message: types.Message):
             await message.answer(f"Ошибка при отправке анкеты: {e}")
             print("Ошибка при отправке анкеты:", e)
 
-# Аналогично для бригады — используем state.get(...) и try/except при вставке в базу и отправке сообщения.
-# (Добавить такой же try/except вокруг cur.execute в @dp.message(lambda m: user_state.get(m.from_user.id, {}).get('role') == 'team'))
+# Аналогично добавьте хендлер для бригад — ТОЛЬКО для лички:
+@dp.message(lambda m: m.chat.type == "private" and user_state.get(m.from_user.id, {}).get('role') == 'team')
+async def team_form(message: types.Message):
+    # Логика заполнения анкеты для бригады — аналогично lone_worker_form
 
 async def main():
     logging.basicConfig(level=logging.INFO)
