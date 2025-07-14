@@ -127,6 +127,9 @@ user_state = {}
 
 @dp.message(Command('start'))
 async def start(message: types.Message):
+    if message.chat.type != 'private':
+        return
+
     await message.answer(
         "Добро пожаловать в бот ООО \"ТСР Остекление\"!\n"
         "Мы — производственно-монтажная компания, специализирующаяся на остеклении объектов любой сложности.\n\n"
@@ -137,16 +140,25 @@ async def start(message: types.Message):
 
 @dp.message(F.text == "👤 Я монтажник (одиночка)")
 async def lone_worker_start(message: types.Message):
+    if message.chat.type != 'private':
+        return
+
     user_state[message.from_user.id] = {'role': 'lone', 'step': 1}
     await message.answer("Укажите ваши ФИО:")
 
 @dp.message(F.text == "👥 Я представляю монтажную бригаду")
 async def team_start(message: types.Message):
+    if message.chat.type != 'private':
+        return
+
     user_state[message.from_user.id] = {'role': 'team', 'step': 1}
     await message.answer("ФИО контактного лица:")
 
 @dp.message(F.text == "ℹ️ О компании")
 async def about_company(message: types.Message):
+    if message.chat.type != 'private':
+        return
+
     await message.answer(
         "<b>ООО “ТСР Остекление”</b> — производственно-монтажная организация, специализирующаяся на остеклении объектов любой сложности.\n\n"
         "🏢 <b>Изготавливаем и устанавливаем:</b>\n"
@@ -166,11 +178,17 @@ async def about_company(message: types.Message):
 
 @dp.message(F.text == "❓ Задать вопрос")
 async def ask_question(message: types.Message):
+    if message.chat.type != 'private':
+        return
+
     user_state[message.from_user.id] = {'role': 'question'}
     await message.answer("Пожалуйста, напишите свой вопрос. Специалист ответит вам в ближайшее время.")
 
 @dp.message(lambda m: user_state.get(m.from_user.id, {}).get('role') == 'question')
 async def handle_user_question(message: types.Message):
+    if message.chat.type != 'private':
+        return
+
     hr_text = (
         f"❓ Вопрос от пользователя @{message.from_user.username if message.from_user.username else message.from_user.id}:\n"
         f"{message.text}"
@@ -182,6 +200,9 @@ async def handle_user_question(message: types.Message):
 # Анкета для одиночки
 @dp.message(lambda m: user_state.get(m.from_user.id, {}).get('role') == 'lone')
 async def lone_worker_form(message: types.Message):
+    if message.chat.type != 'private':
+        return
+
     state = user_state[message.from_user.id]
     step = state.get('step', 1)
 
@@ -331,6 +352,9 @@ async def lone_worker_form(message: types.Message):
 # Анкета для бригад
 @dp.message(lambda m: user_state.get(m.from_user.id, {}).get('role') == 'team')
 async def team_form(message: types.Message):
+    if message.chat.type != 'private':
+        return
+
     state = user_state[message.from_user.id]
     step = state.get('step', 1)
 
